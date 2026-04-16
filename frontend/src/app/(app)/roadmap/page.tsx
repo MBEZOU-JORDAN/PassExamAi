@@ -49,10 +49,11 @@ export default function RoadmapPage() {
     }
   };
 
-  const readyDocs = docs.filter((d) => d.status === "ready");
+  const usableDocs = docs.filter((d) => d.status === "ready" || d.status === "text_extracted");
   const processingDocs = docs.filter((d) =>
     ["parsing", "chunking", "embedding", "uploaded"].includes(d.status)
   );
+  const failedDocs = docs.filter((d) => d.status === "failed");
 
   if (loading) {
     return (
@@ -65,13 +66,24 @@ export default function RoadmapPage() {
 
   return (
     <div className="max-w-[860px] animate-fade-up">
-      {/* Status bar */}
+      {/* Processing status bar */}
       {processingDocs.length > 0 && (
         <div className="card mb-5 flex items-center gap-3 border-accent/30 bg-accent-dim">
           <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin flex-shrink-0" />
           <p className="text-sm text-txt">
             <strong>{processingDocs.length}</strong> document(s) still processing…
             Please wait before generating the roadmap.
+          </p>
+        </div>
+      )}
+
+      {/* Failed documents warning */}
+      {failedDocs.length > 0 && usableDocs.length === 0 && (
+        <div className="card mb-5 flex items-center gap-3 border-danger/30 bg-danger-dim">
+          <Icon name="x" size={16} className="text-danger flex-shrink-0" />
+          <p className="text-sm text-txt">
+            <strong>{failedDocs.length}</strong> document(s) failed to process.
+            Please try re-uploading your files.
           </p>
         </div>
       )}
@@ -84,9 +96,11 @@ export default function RoadmapPage() {
           </div>
           <h2 className="font-display text-[24px] font-bold mb-2">Generate your roadmap</h2>
           <p className="text-txt-muted text-sm mb-6 max-w-sm mx-auto leading-[1.6]">
-            {readyDocs.length > 0
-              ? `${readyDocs.length} document(s) ready. Your AI-powered study plan is a click away.`
-              : "Upload documents first to generate your roadmap."}
+            {usableDocs.length > 0
+              ? `${usableDocs.length} document(s) ready. Your AI-powered study plan is a click away.`
+              : failedDocs.length > 0
+                ? "Document processing failed. Please re-upload your files."
+                : "Upload documents first to generate your roadmap."}
           </p>
           {error && (
             <div className="text-danger text-sm bg-danger-dim border border-[rgba(239,68,68,0.2)] rounded-[10px] px-4 py-3 mb-4 text-left">
@@ -95,7 +109,7 @@ export default function RoadmapPage() {
           )}
           <button
             onClick={handleGenerate}
-            disabled={generating || readyDocs.length === 0}
+            disabled={generating || usableDocs.length === 0}
             className="btn btn-primary btn-lg"
           >
             {generating ? (

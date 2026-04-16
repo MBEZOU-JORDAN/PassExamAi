@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
 from app.core.config import settings
 from app.schemas.documents import DocumentChunk
 
@@ -13,7 +13,7 @@ from google.genai import types as genai_types
 _client = genai.Client(api_key=settings.gemini_api_key)
 
 EMBEDDING_BATCH_SIZE = 50         # Limite safe Gemini API
-EMBEDDING_MODEL = "text-embedding-004"   # 768 dim, stable
+EMBEDDING_MODEL = "models/text-embedding-004"   # 768 dim, stable — préfixe models/ requis
 
 
 # ── Core batch embed ────────────────────────────────────────
@@ -21,6 +21,8 @@ EMBEDDING_MODEL = "text-embedding-004"   # 768 dim, stable
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
 )
 async def _embed_batch(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
     """

@@ -24,13 +24,14 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 
 async function apiRequest<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
 ): Promise<T> {
   const headers = await getAuthHeaders();
 
   // Timeout via AbortController — évite le spinner infini si le backend crash
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(`${BACKEND}/api/v1${path}`, {
@@ -57,7 +58,7 @@ async function apiRequest<T>(
     return res.json();
   } catch (err: any) {
     if (err.name === "AbortError") {
-      throw new Error(`Request timed out (>${REQUEST_TIMEOUT_MS / 1000}s) — backend unreachable`);
+      throw new Error(`Request timed out (>${timeoutMs / 1000}s) — backend unreachable`);
     }
     throw err;
   } finally {
@@ -116,12 +117,14 @@ export const sourcesApi = {
 
 // ── Roadmap ────────────────────────────────────────────────
 
+const ROADMAP_GENERATE_TIMEOUT_MS = 60_000; // 60s — LLM + web enrichment takes time
+
 export const roadmapApi = {
   generate: (projectId: string) =>
     apiRequest<Roadmap>("/roadmap/generate", {
       method: "POST",
       body: JSON.stringify({ project_id: projectId }),
-    }),
+    }, ROADMAP_GENERATE_TIMEOUT_MS),
   get: (roadmapId: string) => apiRequest<Roadmap>(`/roadmap/${roadmapId}`),
   list: (projectId: string) =>
     apiRequest<Roadmap[]>(`/roadmap?project_id=${projectId}`),
