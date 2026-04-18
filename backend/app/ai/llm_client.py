@@ -6,7 +6,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Configure LiteLLM avec toutes les clés API
-litellm.openai_key = settings.openai_api_key
 litellm.groq_key = settings.groq_api_key
 
 # Headers OpenRouter obligatoires

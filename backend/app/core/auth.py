@@ -1,97 +1,81 @@
-import httpx
-import json
-import time
+import logging
+from functools import lru_cache
+from typing import Optional
+
 from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import ExpiredSignatureError, JWTError, jwt
+
 from app.core.config import settings
 
-security = HTTPBearer()
+logger = logging.getLogger(__name__)
+security = HTTPBearer(auto_error=True)
 
-def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
-    # region agent log
+
+def _decode_supabase_token(token: str) -> dict:
+    """
+    Décode et vérifie un JWT Supabase localement.
+    
+    Utilise le SUPABASE_JWT_SECRET (HMAC HS256).
+    Vérifie : signature, expiration, audience.
+    
+    Retourne le payload si valide, lève HTTPException sinon.
+    """
     try:
-        with open("/home/bedane/dev/Projects AI/passexamai/.cursor/debug-a1f71d.log", "a", encoding="utf-8") as f:
-            f.write(json.dumps({
-                "sessionId": "a1f71d",
-                "runId": "run1",
-                "hypothesisId": hypothesis_id,
-                "location": location,
-                "message": message,
-                "data": data,
-                "timestamp": int(time.time() * 1000),
-            }, ensure_ascii=True) + "\n")
-    except Exception:
-        pass
-    # endregion
+        payload = jwt.decode(
+            token,
+            settings.supabase_jwt_secret,
+            algorithms=["HS256"],
+            # Supabase émet les user tokens avec audience "authenticated"
+            options={"verify_aud": True},
+            audience="authenticated",
+        )
+        return payload
+
+    except ExpiredSignatureError:
+        logger.info("Token expiré reçu")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expiré. Reconnectez-vous.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except JWTError as e:
+        logger.warning(f"Token JWT invalide : {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalide.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
-async def verify_supabase_jwt(
+def get_user_from_token(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ) -> dict:
-    token = credentials.credentials
+    """
+    Dependency FastAPI — vérifie le token et retourne l'utilisateur.
+    
+    Usage dans les routes :
+        current_user: dict = Depends(get_user_from_token)
+    
+    Retourne :
+        {"user_id": "uuid", "email": "user@example.com", "role": "authenticated"}
+    """
+    payload = _decode_supabase_token(credentials.credentials)
 
-    url = f"{settings.supabase_url}/auth/v1/user"
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "apikey": settings.supabase_anon_key,  # IMPORTANT: publishable/anon pour /auth/v1/user
-    }
-    _debug_log("H1", "auth.py:74", "verify_supabase_jwt_start", {
-        "url": url,
-        "has_token": bool(token),
-        "timeout_s": 10,
-    })
-
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=headers)
-    except httpx.TimeoutException as exc:
-        _debug_log("H1", "auth.py:84", "verify_supabase_jwt_http_exception", {
-            "exc_type": type(exc).__name__,
-            "exc": str(exc)[:300],
-        })
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication service timeout. Please retry.",
-        )
-    except httpx.HTTPError as exc:
-        _debug_log("H1", "auth.py:93", "verify_supabase_jwt_http_error", {
-            "exc_type": type(exc).__name__,
-            "exc": str(exc)[:300],
-        })
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication service unavailable. Please retry.",
-        )
-
-    if resp.status_code != 200:
-        _debug_log("H3", "auth.py:91", "verify_supabase_jwt_non_200", {
-            "status_code": resp.status_code,
-            "response_excerpt": resp.text[:200],
-        })
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token invalide (Supabase): {resp.text}",
-        )
-
-    data = resp.json()
-
-    # Supabase renvoie un objet user; selon le contexte, le "id" du user est souvent dans `id`
-    user_id = data.get("id") or data.get("sub")
+    user_id: Optional[str] = payload.get("sub")
     if not user_id:
-        _debug_log("H2", "auth.py:104", "verify_supabase_jwt_missing_user_id", {
-            "keys": list(data.keys())[:20],
-        })
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token validé mais user id manquant: {data}",
+            detail="Token sans identifiant utilisateur.",
         )
-    _debug_log("H2", "auth.py:111", "verify_supabase_jwt_success", {
-        "has_email": bool(data.get("email")),
-        "user_id_len": len(str(user_id)),
-    })
 
     return {
-        "sub": user_id,
-        "email": data.get("email", ""),
+        "user_id": user_id,
+        "email": payload.get("email", ""),
+        "role": payload.get("role", "authenticated"),
     }
+
+
+# Alias pour rétrocompatibilité avec le reste du codebase
+# (tous les fichiers qui importent verify_supabase_jwt continuent de fonctionner)
+verify_supabase_jwt = get_user_from_token

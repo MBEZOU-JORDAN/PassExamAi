@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, HttpUrl
 from typing import Optional, Literal
 from datetime import datetime
 import uuid
-
+ 
 # ---------- Enums ----------
 DocumentStatus = Literal[
     "uploaded", "parsing", "chunking", "embedding", "ready", "failed"

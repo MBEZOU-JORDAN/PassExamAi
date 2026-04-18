@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str
 
     # LLM
-    openai_api_key: str
+    jina_api_key: str
     gemini_api_key: str
     groq_api_key: str
     openrouter_api_key: str
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
 
-# LLM Routing — modèles par tâche (FULL GROQ)
+    # LLM Routing — modèles par tâche (FULL GROQ)
     
     # Raisonnement complexe, analyse de documents et pédagogie (70B)
     model_roadmap: str = "groq/llama-3.3-70b-versatile"
