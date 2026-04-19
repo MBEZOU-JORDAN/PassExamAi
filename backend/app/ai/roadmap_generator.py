@@ -7,7 +7,8 @@ from typing import Optional
 from app.ai.llm_client import llm_complete
 from app.db.supabase_client import supabase
 from app.rag.retrieval import retrieve_chunks
-from app.schemas.roadmap import RoadmapSchema, ChapterSchema
+from app.schemas.roadmap import RoadmapSchema
+from app.schemas.chapter import ChapterSchema
 from app.web.firecrawl_client import enrich_with_web
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,7 @@
 import json
 import uuid
 import logging
+import asyncio
 from app.ai.llm_client import llm_complete
 from app.db.supabase_client import supabase
 from app.rag.retrieval import retrieve_for_chapter
@@ -96,15 +97,19 @@ async def generate_exam(
 
     # ── 3. Récupère les chunks RAG par chapitre ────────────
     chapters_context = []
-    for i, ch in enumerate(chapters):
-        chunks = await retrieve_for_chapter(
+    rag_tasks = [
+        retrieve_for_chapter(
             chapter_title=ch["title"],
             project_id=project_id,
             top_k=4,
         )
-        context = "\n".join(
-            c.get("content", "")[:800] for c in chunks[:3]
-        )
+        for ch in chapters
+    ]
+    all_chunks = await asyncio.gather(*rag_tasks)
+
+    chapters_context = []
+    for i, (ch, chunks) in enumerate(zip(chapters, all_chunks)):
+        context = "\n".join(c.get("content", "")[:800] for c in chunks[:3])
         chapters_context.append({
             "index": i,
             "title": ch["title"],
@@ -212,6 +217,8 @@ def _save_exam(exam: ExamSchema, roadmap_id: str, chapters: list[dict]) -> ExamS
     supabase.table("mock_exams").insert({
         "id": exam_id,
         "roadmap_id": roadmap_id,
+        "chapter_id": str(exam.chapter_id) if exam.chapter_id else None,  
+        "is_mini_exam": exam.is_mini_exam,                                  
         "title": exam.title,
         "time_limit": exam.time_limit,
         "question_count": exam.question_count,

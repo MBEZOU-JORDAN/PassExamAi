@@ -3,7 +3,6 @@ import logging
 from app.ai.llm_client import llm_complete
 from app.db.supabase_client import supabase
 from app.rag.retrieval import retrieve_for_chapter
-from app.rag.query_rewriter import rewrite_query
 from app.schemas.lesson import LessonSchema, ExampleSchema, SourceReference
 from app.web.firecrawl_client import enrich_with_web
 
@@ -32,7 +31,7 @@ Rules:
 - All text in English
 """
 
-
+ 
 def _build_lesson_prompt(
     chapter_title: str,
     chapter_objective: str,
@@ -185,6 +184,7 @@ def _save_lesson(lesson: LessonSchema, chapter_id: str) -> LessonSchema:
         "content": lesson.content,
         "examples": [e.model_dump() for e in lesson.examples],
         "source_references": [r.model_dump() for r in lesson.source_references],
+        "visual_aids_description": lesson.visual_aids_description,
     }).execute()
     if result.data:
         lesson.id = uuid.UUID(result.data[0]["id"])

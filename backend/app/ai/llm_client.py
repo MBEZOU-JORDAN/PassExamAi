@@ -65,7 +65,7 @@ async def get_embeddings(texts: list[str]) -> list[list[float]]:
         response = await aembedding(
             model=settings.model_embeddings,
             input=texts,
-            api_key=settings.openai_api_key,
+            api_key=settings.jina_api_key,
         )
         return [item["embedding"] for item in response.data]
 
